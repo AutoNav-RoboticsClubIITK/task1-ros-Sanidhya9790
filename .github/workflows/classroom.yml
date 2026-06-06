@@ -1,0 +1,294 @@
+name: GitHub Classroom Workflow
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  checks: write
+  actions: read
+  contents: read
+
+jobs:
+  # ------------------------------------------------------------------
+  # Use the official GitHub Classroom autograding action
+  # ------------------------------------------------------------------
+  build:
+    name: Autograding
+    runs-on: ubuntu-latest
+    container:
+      image: osrf/ros:humble-desktop
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # ---- File-structure checks ----
+      - name: "Test 1 — Package structure exists"
+        id: test1
+        run: |
+          echo "::group::Checking package structure"
+          PASS=true
+          for f in autonav_beginner/src/lidar_publisher.cpp \
+                   autonav_beginner/src/obstacle_detector.cpp \
+                   autonav_beginner/src/drive_decider.cpp \
+                   autonav_beginner/CMakeLists.txt \
+                   autonav_beginner/package.xml; do
+            if [ ! -f "$f" ]; then
+              echo "❌ Missing: $f"
+              PASS=false
+            else
+              echo "✅ Found: $f"
+            fi
+          done
+          echo "::endgroup::"
+          if [ "$PASS" = false ]; then
+            echo "result=fail" >> "$GITHUB_OUTPUT"
+            exit 1
+          fi
+          echo "result=pass" >> "$GITHUB_OUTPUT"
+
+      # ---- Task 1: lidar_publisher checks ----
+      - name: "Test 2 — lidar_publisher.cpp content validation"
+        id: test2
+        run: |
+          FILE="autonav_beginner/src/lidar_publisher.cpp"
+          PASS=true
+
+          # Node name
+          if ! grep -qE '(\"lidar_publisher\"|"lidar_publisher")' "$FILE"; then
+            echo "❌ Node name 'lidar_publisher' not found"
+            PASS=false
+          else
+            echo "✅ Node name 'lidar_publisher' found"
+          fi
+
+          # Topic name /lidar/ranges
+          if ! grep -qE '(/lidar/ranges|"lidar/ranges"|"/lidar/ranges")' "$FILE"; then
+            echo "❌ Topic '/lidar/ranges' not found"
+            PASS=false
+          else
+            echo "✅ Topic '/lidar/ranges' found"
+          fi
+
+          # Uses std_msgs String
+          if ! grep -qE 'std_msgs.*String|#include.*std_msgs.*string' "$FILE"; then
+            echo "❌ std_msgs/String usage not found"
+            PASS=false
+          else
+            echo "✅ std_msgs/String usage found"
+          fi
+
+          # Timer / publisher pattern (1 second = 1000ms or 1s)
+          if ! grep -qE '(create_wall_timer|create_timer|timer)' "$FILE"; then
+            echo "❌ Timer creation not found"
+            PASS=false
+          else
+            echo "✅ Timer pattern found"
+          fi
+
+          if [ "$PASS" = false ]; then
+            echo "result=fail" >> "$GITHUB_OUTPUT"
+            exit 1
+          fi
+          echo "result=pass" >> "$GITHUB_OUTPUT"
+
+      # ---- Task 2: obstacle_detector checks ----
+      - name: "Test 3 — obstacle_detector.cpp content validation"
+        id: test3
+        run: |
+          FILE="autonav_beginner/src/obstacle_detector.cpp"
+          PASS=true
+
+          # Node name
+          if ! grep -qE '(\"obstacle_detector\"|"obstacle_detector")' "$FILE"; then
+            echo "❌ Node name 'obstacle_detector' not found"
+            PASS=false
+          else
+            echo "✅ Node name 'obstacle_detector' found"
+          fi
+
+          # Subscribe to /lidar/ranges
+          if ! grep -qE '(/lidar/ranges|"lidar/ranges"|"/lidar/ranges")' "$FILE"; then
+            echo "❌ Subscription to '/lidar/ranges' not found"
+            PASS=false
+          else
+            echo "✅ Subscription to '/lidar/ranges' found"
+          fi
+
+          # Publish to /obstacle/status
+          if ! grep -qE '(/obstacle/status|"obstacle/status"|"/obstacle/status")' "$FILE"; then
+            echo "❌ Publisher on '/obstacle/status' not found"
+            PASS=false
+          else
+            echo "✅ Publisher on '/obstacle/status' found"
+          fi
+
+          # Status strings
+          for status in CLEAR WARNING DANGER; do
+            if ! grep -q "$status" "$FILE"; then
+              echo "❌ Status string '$status' not found"
+              PASS=false
+            else
+              echo "✅ Status string '$status' found"
+            fi
+          done
+
+          # Threshold checks (0.5 and 1.5)
+          if ! grep -qE '(0\.5|1\.5)' "$FILE"; then
+            echo "❌ Threshold values (0.5 / 1.5) not found"
+            PASS=false
+          else
+            echo "✅ Threshold values found"
+          fi
+
+          if [ "$PASS" = false ]; then
+            echo "result=fail" >> "$GITHUB_OUTPUT"
+            exit 1
+          fi
+          echo "result=pass" >> "$GITHUB_OUTPUT"
+
+      # ---- Task 3: drive_decider checks ----
+      - name: "Test 4 — drive_decider.cpp content validation"
+        id: test4
+        run: |
+          FILE="autonav_beginner/src/drive_decider.cpp"
+          PASS=true
+
+          # Node name
+          if ! grep -qE '(\"drive_decider\"|"drive_decider")' "$FILE"; then
+            echo "❌ Node name 'drive_decider' not found"
+            PASS=false
+          else
+            echo "✅ Node name 'drive_decider' found"
+          fi
+
+          # Subscribe to /obstacle/status
+          if ! grep -qE '(/obstacle/status|"obstacle/status"|"/obstacle/status")' "$FILE"; then
+            echo "❌ Subscription to '/obstacle/status' not found"
+            PASS=false
+          else
+            echo "✅ Subscription to '/obstacle/status' found"
+          fi
+
+          # Publish to /robot/action
+          if ! grep -qE '(/robot/action|"robot/action"|"/robot/action")' "$FILE"; then
+            echo "❌ Publisher on '/robot/action' not found"
+            PASS=false
+          else
+            echo "✅ Publisher on '/robot/action' found"
+          fi
+
+          # Action strings
+          for action in "MOVE FORWARD" "SLOW DOWN" "STOP"; do
+            if ! grep -q "$action" "$FILE"; then
+              echo "❌ Action string '$action' not found"
+              PASS=false
+            else
+              echo "✅ Action string '$action' found"
+            fi
+          done
+
+          if [ "$PASS" = false ]; then
+            echo "result=fail" >> "$GITHUB_OUTPUT"
+            exit 1
+          fi
+          echo "result=pass" >> "$GITHUB_OUTPUT"
+
+      # ---- CMakeLists.txt validation ----
+      - name: "Test 5 — CMakeLists.txt declares all 3 executables"
+        id: test5
+        run: |
+          FILE="autonav_beginner/CMakeLists.txt"
+          PASS=true
+
+          for exe in lidar_publisher obstacle_detector drive_decider; do
+            if ! grep -q "$exe" "$FILE"; then
+              echo "❌ Executable '$exe' not declared in CMakeLists.txt"
+              PASS=false
+            else
+              echo "✅ Executable '$exe' declared"
+            fi
+          done
+
+          # Check rclcpp and std_msgs dependencies
+          for dep in rclcpp std_msgs; do
+            if ! grep -q "$dep" "$FILE"; then
+              echo "❌ Dependency '$dep' not found in CMakeLists.txt"
+              PASS=false
+            else
+              echo "✅ Dependency '$dep' found"
+            fi
+          done
+
+          if [ "$PASS" = false ]; then
+            echo "result=fail" >> "$GITHUB_OUTPUT"
+            exit 1
+          fi
+          echo "result=pass" >> "$GITHUB_OUTPUT"
+
+      # ---- Build the package with colcon ----
+      - name: "Test 6 — Package compiles with colcon build"
+        id: test6
+        run: |
+          # Source ROS 2 environment
+          . /opt/ros/humble/setup.sh
+
+          # Create a temporary colcon workspace
+          mkdir -p /tmp/ws/src
+          cp -r autonav_beginner /tmp/ws/src/
+
+          cd /tmp/ws
+          colcon build --packages-select autonav_beginner 2>&1 | tee /tmp/build.log
+          BUILD_EXIT=${PIPESTATUS[0]}
+
+          if [ $BUILD_EXIT -ne 0 ]; then
+            echo "❌ colcon build FAILED"
+            echo "result=fail" >> "$GITHUB_OUTPUT"
+            exit 1
+          fi
+          echo "✅ colcon build PASSED"
+          echo "result=pass" >> "$GITHUB_OUTPUT"
+
+      # ---- Screenshot check ----
+      - name: "Test 7 — Screenshots submitted"
+        id: test7
+        run: |
+          FOUND=false
+          for ext in png jpg jpeg PNG JPG JPEG; do
+            if ls ./*."$ext" 1>/dev/null 2>&1 || ls autonav_beginner/*."$ext" 1>/dev/null 2>&1; then
+              FOUND=true
+              break
+            fi
+          done
+          if [ "$FOUND" = false ]; then
+            echo "⚠️  No screenshot files found (png/jpg) — this is worth 0 points but is expected"
+            echo "result=fail" >> "$GITHUB_OUTPUT"
+            exit 1
+          fi
+          echo "✅ Screenshot(s) found"
+          echo "result=pass" >> "$GITHUB_OUTPUT"
+
+      # ---- Autograding summary ----
+      - name: Autograding Reporter
+        if: always()
+        run: |
+          echo "============================================"
+          echo "         AUTOGRADING RESULTS SUMMARY        "
+          echo "============================================"
+          echo ""
+          echo "Test 1 — Package structure:           ${{ steps.test1.outcome }}"
+          echo "Test 2 — lidar_publisher validation:  ${{ steps.test2.outcome }}"
+          echo "Test 3 — obstacle_detector validation:${{ steps.test3.outcome }}"
+          echo "Test 4 — drive_decider validation:    ${{ steps.test4.outcome }}"
+          echo "Test 5 — CMakeLists.txt validation:   ${{ steps.test5.outcome }}"
+          echo "Test 6 — colcon build:                ${{ steps.test6.outcome }}"
+          echo "Test 7 — Screenshots submitted:       ${{ steps.test7.outcome }}"
+          echo ""
+          echo "============================================"
+
+      # ---- GitHub Classroom Autograding ----
+      - name: GitHub Classroom Autograding
+        if: always()
+        uses: education/autograding@v1
